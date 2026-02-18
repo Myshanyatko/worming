@@ -1,0 +1,4 @@
+.worm-dot {
+  transition: none !important;
+  will-change: cx, cy;
+}

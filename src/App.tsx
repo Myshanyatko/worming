@@ -5,7 +5,7 @@ import Worm from './components/worm/Worm';
 function App() {
   return (
     <div className='app'>
-      <Field>{({ size, position }) => <Worm screenSize={size} position={position}></Worm>}</Field>
+      <Field>{({ size, position }) => <Worm fieldSize={size} fieldPosition={position}></Worm>}</Field>
     </div>
   );
 }
