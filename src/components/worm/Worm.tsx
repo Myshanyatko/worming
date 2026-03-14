@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import './Worm.css';
 import Segment from '../circle/Segment';
+import type { Point } from './Point';
 
 interface SegmentWorm {
   current: Point;
@@ -9,146 +10,79 @@ interface SegmentWorm {
 interface WormProps {
   fieldSize: [number, number];
   fieldPosition: [number, number];
+  target: Point;
+  feed: number;
 }
-interface Point {
-  x: number;
-  y: number;
-}
-const INITIAL: SegmentWorm = {
-  current: { x: 600, y: 600 },
-  prev: {
-    current: { x: 610, y: 610 },
-    prev: {
-      current: { x: 620, y: 620 },
-      prev: { current: { x: 630, y: 630 }, prev: null },
-    },
-  },
-};
-const CURSOR_PADDING = 10;
-const HAS_ANIMATION = false;
-const START_WORM_VISIBLE = true;
+
+const INITIAL_SEGMENTS = 3;
+const SEGMENT_DISTANCE = 15;
 const MAX_SPEED = 6;
 
-function Worm({ fieldSize, fieldPosition }: WormProps) {
-  const [wormIsVisible, setWormIsVisible] = useState(START_WORM_VISIBLE);
+function Worm({ fieldSize, fieldPosition, target, feed }: WormProps) {
+  const [head, setHead] = useState<SegmentWorm | null>(() =>
+    createInitialWorm(target),
+  );
 
-  const [segment, setSegment] = useState<SegmentWorm>(INITIAL);
-
-  const segmentRef = useRef<SegmentWorm>(segment);
-
-
-  const [viewBoxSizeString, setViewBoxSizeString] = useState('0 0 1024 1080');
-
-  const hasMoved = useRef(false);
-  const targetRef = useRef({ x: 50, y: 50 });
-  const animationID = useRef<number>(null);
-
-  const updateWormPosition = () => {
-    const currentHead = segmentRef.current.current;
-    const target = targetRef.current;
-
-    const dx = target.x - currentHead.x;
-    const dy = target.y - currentHead.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-
-    let nextHead: Point | null = null;
-
-    if (distance > MAX_SPEED) {
-      const ratio = MAX_SPEED / distance;
-      nextHead = {
-        x: currentHead.x + dx * ratio,
-        y: currentHead.y + dy * ratio,
-      };
-    } else if (distance > 0.5) {
-      // Финишный телепорт, чтобы не дрожал
-      nextHead = target;
-    }
-
-    if (nextHead) {
-      const nextSegment: SegmentWorm = shiftWorm(
-        segmentRef.current,
-        nextHead,
-      ) as SegmentWorm;
-      segmentRef.current = nextSegment;
-      setSegment(nextSegment);
-    }
-  };
+  const rafRef = useRef<number>(0);
+  const targetRef = useRef<Point>(target);
 
   useEffect(() => {
     const animate = () => {
-      updateWormPosition();
-      animationID.current = requestAnimationFrame(animate);
+      setHead((prevHead) => {
+        if (!prevHead) return null;
+
+        const currentPos = prevHead.current;
+        const targetPos = targetRef.current;
+
+        const dx = targetPos.x - currentPos.x;
+        const dy = targetPos.y - currentPos.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        let newHeadPos: Point;
+
+        if (distance > MAX_SPEED) {
+          const ratio = MAX_SPEED / distance;
+          newHeadPos = {
+            x: currentPos.x + dx * ratio,
+            y: currentPos.y + dy * ratio,
+          };
+        } else {
+          newHeadPos = { x: targetPos.x, y: targetPos.y };
+        }
+
+        return shiftWorm(prevHead, newHeadPos);
+      });
+
+      rafRef.current = requestAnimationFrame(animate);
     };
 
-    animationID.current = requestAnimationFrame(animate);
-    const handleMouseMove = (event: MouseEvent) => {
-      const targetX = getX(fieldSize[0], fieldPosition[0], event.clientX);
-      const targetY = getY(fieldSize[1], fieldPosition[1], event.clientY);
-
-      // Просто обновляем цель. Движение происходит в animate().
-      targetRef.current = { x: targetX, y: targetY };
-
-      if (!hasMoved.current) {
-        hasMoved.current = true;
-        setWormIsVisible(true);
-
-        // При первом движении телепортируем, чтобы не ждать долго
-        const initialSegment = createTeleportedBody(
-          segmentRef.current,
-          targetRef.current,
-        );
-        segmentRef.current = initialSegment;
-        setSegment(initialSegment);
-      }
-    };
-
-    if (HAS_ANIMATION) {
-      animationID.current = requestAnimationFrame(animate);
-    }
-    window.addEventListener('mousemove', handleMouseMove);
-
+    rafRef.current = requestAnimationFrame(animate);
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      if (animationID.current) {
-        cancelAnimationFrame(animationID.current);
-      }
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [fieldSize, fieldPosition]);
+  }, []);
 
   useEffect(() => {
-    setViewBoxSizeString(
-      `${fieldPosition[0]} ${fieldPosition[1]} ${fieldSize[0]} ${fieldSize[1]}`,
-    );
-  }, [fieldSize, fieldPosition]);
-  
-  useEffect(() => {
-    segmentRef.current = segment;
-  }, [segment]);
+    setHead((prevHead) => (prevHead ? addTail(prevHead) : null));
+  }, [feed]);
 
-  function feed() {
-    const nextSegment = addTailFast(segmentRef.current);
-    if (nextSegment) {
-      segmentRef.current = nextSegment;
-      setSegment(nextSegment);
-    }
-  }
+  useEffect(() => {
+    targetRef.current = target;
+  }, [target]);
 
   return (
     <>
-      <button onClick={feed}>увеличить</button>
       <div className='worm'>
         <svg
-          viewBox={viewBoxSizeString}
+          viewBox={`${fieldPosition[0]} ${fieldPosition[1]} ${fieldSize[0]} ${fieldSize[1]}`}
           xmlns='http://www.w3.org/2000/svg'
           style={{ overflow: 'auto' }}
         >
-          {wormIsVisible ? (
+          {head && (
             <Segment
-              segment={segment}
+              segment={head}
               isHead={true}
-            ></Segment>
-          ) : (
-            <></>
+            />
           )}
         </svg>
       </div>
@@ -158,65 +92,53 @@ function Worm({ fieldSize, fieldPosition }: WormProps) {
 
 export default Worm;
 
-function getX(fieldWidth: number, startField: number, clientX: number): number {
-  const endField = startField + fieldWidth;
-  const x = clientX - CURSOR_PADDING;
-  const xInField =
-    x > endField ? endField : x <= startField ? startField + 2 : x;
-  return xInField;
-}
-
-function getY(
-  fieldHeight: number,
-  startField: number,
-  clientY: number,
-): number {
-  const endField = startField + fieldHeight;
-  const y = clientY - CURSOR_PADDING;
-  const yInField =
-    y > endField ? endField : y <= startField ? startField + 3 : y;
-  return yInField;
-}
-function createTeleportedBody(
-  oldBody: SegmentWorm | null,
-  pos: Point,
-): SegmentWorm {
-  if (!oldBody) return { current: { ...pos }, prev: null };
-  return {
-    current: { ...pos },
-    prev: createTeleportedBody(oldBody.prev, pos),
-  };
-}
 function shiftWorm(
-  body: SegmentWorm | null,
+  head: SegmentWorm | null,
   newPoint: Point,
 ): SegmentWorm | null {
-  if (!body) return null;
+  if (!head) return null;
 
-  const oldCurrent = body.current;
+  const oldCurrent = head.current;
 
   return {
     current: { ...newPoint },
-    prev: shiftWorm(body.prev, oldCurrent),
+    prev: shiftWorm(head.prev, oldCurrent),
   };
 }
 
-function addTailFast(body: SegmentWorm ): SegmentWorm | null {
-   // let old: SegmentWorm | null = { ...this };
-    let preEnd: SegmentWorm = { current: body.current, prev: body.prev };
-    while (!!preEnd?.prev?.prev) {
-      preEnd = preEnd?.prev;
-      // i = i.prev;
+function addTail(head: SegmentWorm): SegmentWorm {
+  function cloneWithTail(seg: SegmentWorm | null): SegmentWorm | null {
+    if (!seg) return null;
+    if (!seg.prev) {
+      // Добавляем новый сегмент после последнего
+      return {
+        current: seg.current,
+        prev: {
+          current: {
+            x: seg.current.x - SEGMENT_DISTANCE,
+            y: seg.current.y,
+          },
+          prev: null,
+        },
+      };
     }
-    const preEndX = preEnd?.current.x as number;
-    const endX = preEnd?.prev?.current.x as number;
-    const preEndY = preEnd?.current.y as number;
-    const endY = preEnd?.prev?.current.y as number;
-    const point = { x: endX * 2 - preEndX, y: endY * 2 - preEndY };
-    ((preEnd as SegmentWorm).prev as SegmentWorm).prev = {
-      current: point,
-      prev: null,
+    return {
+      current: seg.current,
+      prev: cloneWithTail(seg.prev),
     };
-
-    return { current: body.current, prev: body.prev };
+  }
+  return cloneWithTail(head)!;
+}
+function createInitialWorm(start: Point): SegmentWorm {
+  let worm: SegmentWorm = { current: { ...start }, prev: null };
+  for (let i = 1; i < INITIAL_SEGMENTS; i++) {
+    worm = {
+      current: {
+        x: start.x - i * SEGMENT_DISTANCE,
+        y: start.y,
+      },
+      prev: worm,
+    };
+  }
+  return worm;
 }
