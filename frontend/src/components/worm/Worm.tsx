@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import './Worm.css';
-import Segment from '../circle/Segment';
+import Segment from '../segment/Segment';
 import type { Point } from './Point';
 
 interface SegmentWorm {
