@@ -12,13 +12,14 @@ interface WormProps {
   fieldPosition: [number, number];
   target: Point;
   feed: number;
+  name: string;
 }
 
 const INITIAL_SEGMENTS = 3;
 const SEGMENT_DISTANCE = 15;
 const MAX_SPEED = 6;
 
-function Worm({ fieldSize, fieldPosition, target, feed }: WormProps) {
+function Worm({ fieldSize, fieldPosition, target, feed, name }: WormProps) {
   const [head, setHead] = useState<SegmentWorm | null>(() =>
     createInitialWorm(target),
   );
@@ -73,6 +74,7 @@ function Worm({ fieldSize, fieldPosition, target, feed }: WormProps) {
   return (
     <>
       <div className='worm'>
+        {/* <p className="name" style={{ left: head?.current.x, top: head?.current.y}}>{name}</p> */}
         <svg
           viewBox={`${fieldPosition[0]} ${fieldPosition[1]} ${fieldSize[0]} ${fieldSize[1]}`}
           xmlns='http://www.w3.org/2000/svg'
@@ -82,6 +84,7 @@ function Worm({ fieldSize, fieldPosition, target, feed }: WormProps) {
             <Segment
               segment={head}
               isHead={true}
+              name={name}
             />
           )}
         </svg>

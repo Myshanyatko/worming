@@ -6,15 +6,11 @@ import (
 
 func main() {
 	fmt.Println("go go  go")
-	server := StartServer(messageHandler)
+	StartServer()
 
 	// for {
-	server.WriteMessage([]byte("Hello"))
+	// server.WriteMessage( []byte("Hello"))
 	// }
 
 	select {}
-}
-
-func messageHandler(message []byte) {
-	fmt.Println(string(message))
 }

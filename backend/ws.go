@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"sync"
 
 	"github.com/gorilla/websocket"
 )
@@ -14,23 +15,28 @@ var upgrader = websocket.Upgrader{
 }
 
 type Server struct {
-	clients       map[*websocket.Conn]bool
-	handleMessage func(message []byte)
+	mu      sync.Mutex
+	writeMu sync.Mutex
+	clients map[*websocket.Conn]string
 }
 
-func StartServer(handleMessage func(message []byte)) *Server {
+func StartServer() *Server {
 	server := Server{
-		make(map[*websocket.Conn]bool),
-		handleMessage,
+		clients: make(map[*websocket.Conn]string),
 	}
 
-	http.HandleFunc("/ws", server.echo)
+	http.HandleFunc("/", server.echo)
 	go http.ListenAndServe(":8080", nil)
 
 	return &server
 }
 
 func (server *Server) echo(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		http.Error(w, "Name is required", http.StatusBadRequest)
+		return
+	}
 	connection, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		fmt.Println("Upgrade failed:", err)
@@ -38,22 +44,40 @@ func (server *Server) echo(w http.ResponseWriter, r *http.Request) {
 	}
 	defer connection.Close()
 
-	server.clients[connection] = true
-	defer delete(server.clients, connection)
+	server.mu.Lock()
+	server.clients[connection] = name
+	server.mu.Unlock()
+	defer func() {
+		server.mu.Lock()
+		delete(server.clients, connection)
+		server.mu.Unlock()
+	}()
 
 	for {
-		mt, message, err := connection.ReadMessage()
-
-		if err != nil || mt == websocket.CloseMessage {
+		var pos Position
+		if err := connection.ReadJSON(&pos); err != nil {
+			fmt.Println("ReadJSON:", err)
 			break
 		}
-
-		go server.handleMessage(message)
+		server.WriteMessage(connection, pos, name)
 	}
 }
 
-func (server *Server) WriteMessage(message []byte) {
+func (server *Server) WriteMessage(from *websocket.Conn, position Position, name string) {
+	server.mu.Lock()
+	targets := make([]*websocket.Conn, 0, len(server.clients))
 	for conn := range server.clients {
-		conn.WriteMessage(websocket.TextMessage, message)
+		if conn != from {
+			targets = append(targets, conn)
+		}
+	}
+	server.mu.Unlock()
+
+	message := MessageJSON{Name: name, Position: position}
+	server.writeMu.Lock()
+	defer server.writeMu.Unlock()
+	for _, conn := range targets {
+		// fmt.Printf("отправляю", message)
+		_ = conn.WriteJSON(message)
 	}
 }

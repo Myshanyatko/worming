@@ -7,8 +7,9 @@ interface Segment {
 interface SegmentProps {
   segment: Segment;
   isHead?: boolean;
+  name?: string;
 }
-function Segment({ segment, isHead }: SegmentProps) {
+function Segment({ segment, isHead, name }: SegmentProps) {
   const x = segment.current.x;
   const y = segment.current.y;
 
@@ -24,9 +25,10 @@ function Segment({ segment, isHead }: SegmentProps) {
       />
       {isHead ? (
         <>
+          <text fill='white' x={x-20} y={y-16}>{name}</text>
           <circle
             cx={x - 4}
-            cy={y -2}
+            cy={y - 2}
             r='2'
             fill='black'
           />

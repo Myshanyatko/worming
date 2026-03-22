@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import './Field.css';
 import type { Point } from '../worm/Point';
-const CURSOR_PADDING = 10;
+const CURSOR_PADDING = {
+  x: -40,
+  y: 100,
+};
 
 interface FieldProps {
   children: (args: {
@@ -9,9 +12,10 @@ interface FieldProps {
     fieldPosition: [number, number];
     cursorPosition: Point;
   }) => ReactNode;
+  changeCursorPosition: (position: Point) => void;
 }
 
-function Field({ children }: FieldProps) {
+function Field({ children, changeCursorPosition }: FieldProps) {
   const [size, setSize] = useState([1024, 1080]);
   const [cursorPosition, setCursorPosition] = useState({ x: 600, y: 700 });
 
@@ -47,6 +51,7 @@ function Field({ children }: FieldProps) {
           ? { x: localX, y: localY }
           : prev,
       );
+      changeCursorPosition({ x: localX, y: localY });
     };
 
     window.addEventListener('mousemove', handleMouseMove);
@@ -74,7 +79,7 @@ function Field({ children }: FieldProps) {
 
 function getX(fieldWidth: number, startField: number, clientX: number): number {
   const endField = startField + fieldWidth;
-  const x = clientX - CURSOR_PADDING;
+  const x = clientX + CURSOR_PADDING.x;
   const xInField =
     x > endField ? endField : x <= startField ? startField + 2 : x;
   return xInField;
@@ -86,7 +91,7 @@ function getY(
   clientY: number,
 ): number {
   const endField = startField + fieldHeight;
-  const y = clientY - CURSOR_PADDING;
+  const y = clientY - CURSOR_PADDING.y;
   const yInField =
     y > endField ? endField : y <= startField ? startField + 3 : y;
   return yInField;

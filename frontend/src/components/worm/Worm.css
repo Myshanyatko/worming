@@ -5,3 +5,8 @@
   transition: none !important;
   will-change: cx, cy;
 }
+
+.name {
+  position: absolute;
+  color: #fff;
+}
